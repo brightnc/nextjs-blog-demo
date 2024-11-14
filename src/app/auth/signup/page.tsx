@@ -1,5 +1,5 @@
 "use client";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
@@ -22,6 +22,8 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 const formSchema = z
   .object({
@@ -52,10 +54,12 @@ const formSchema = z
     path: ["confirmPassword"],
   });
 
-export default function Login() {
+export default function SingUp() {
+  const [loading, setLoading] = useState<boolean>(false);
   const [passwordVisibility, setPasswordVisibility] = useState<boolean>(false);
   const [confirmPasswordVisibility, setConfirmPasswordVisibility] =
     useState<boolean>(false);
+  const { push } = useRouter();
 
   const handleShowPassword = () => {
     setPasswordVisibility((prev) => !prev);
@@ -65,7 +69,6 @@ export default function Login() {
     setConfirmPasswordVisibility((prev) => !prev);
   };
 
-  // 1. Define your form.
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -73,20 +76,48 @@ export default function Login() {
       email: "",
       password: "",
       confirmPassword: "",
+      dateOfBirth: undefined,
     },
   });
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
-    // Do something with the form values.
-    // ✅ This will be type-safe and validated.
-    console.log(values);
+  async function onSubmit(values: z.infer<typeof formSchema>) {
+    setLoading(true);
+    const formattedDateOfBirth = format(values.dateOfBirth, "yyyy-MM-dd");
+
+    const data = {
+      ...values,
+      dateOfBirth: formattedDateOfBirth,
+    };
+    try {
+      const res = await fetch("http://localhost:8080/auth/signup", {
+        method: "post",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+
+      const responseData = await res.json();
+      console.log(responseData);
+      if (!res.ok) {
+        throw new Error(responseData.message || "Sign up failed. Try again.");
+      }
+      toast.success("Successfully created account");
+      form.reset();
+      push("/auth/signin");
+    } catch (error) {
+      console.error("Error during registration:", error);
+      if (error instanceof Error) {
+        if (error.message === "Failed to fetch") {
+          error.message = "An unknown error occurred. Please try again.";
+        }
+        toast.error(error.message);
+      }
+    } finally {
+      setLoading(false);
+    }
   }
   return (
-    <section className="w-full flex flex-col items-center">
-      <div className="">
-        <h1 className="">LOGIN</h1>
-      </div>
-
+    <section className="w-full h-screen flex flex-col items-center justify-center ">
+      <h1 className="mb-5 text-xl">SignUp</h1>
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5 w-72">
           {/************************************
@@ -231,7 +262,15 @@ export default function Login() {
           {/************************************
            * Submit Button
            ************************************/}
-          <Button type="submit">Submit</Button>
+          <div className="w-full flex justify-center">
+            <Button
+              type="submit"
+              disabled={loading}
+              className={buttonVariants({ size: "lg" })}
+            >
+              {loading ? "Submitting" : "Submit"}
+            </Button>
+          </div>
         </form>
       </Form>
     </section>
